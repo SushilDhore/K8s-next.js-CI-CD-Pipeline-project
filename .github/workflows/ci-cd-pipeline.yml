@@ -10,31 +10,64 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout repository
       - name: Checkout repository
         uses: actions/checkout@v2
 
+      # Step 2: Set up Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v2
         with:
           node-version: '18'
 
+      # Step 3: Install dependencies
       - name: Install dependencies
         run: npm install
 
+      # Step 4: Build the app
       - name: Build the app
         run: npm run build
 
-      - name: Log in to Amazon ECR
+      # Step 5: Install AWS CLI
+      - name: Install AWS CLI
         run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY_URI }}
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install
+      - name: Configure AWS credentials
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+          aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+          aws configure set region $AWS_REGION
 
+      # Step 6: Log in to Amazon ECR
+      - name: Log in to Amazon ECR
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY_URI }}
+
+      # Step 7: Build and push Docker image
       - name: Build and push Docker image
+        env:
+          ECR_REPOSITORY_URI: ${{ secrets.ECR_REPOSITORY_URI }}
         run: |
           docker build -t react-speed-reader .
-          docker tag react-speed-reader:latest ${{ secrets.ECR_REPOSITORY_URI }}:latest
-          docker push ${{ secrets.ECR_REPOSITORY_URI }}:latest
+          docker tag react-speed-reader:latest $ECR_REPOSITORY_URI:latest
+          docker push $ECR_REPOSITORY_URI:latest
 
+      # Step 8: Deploy to EKS
       - name: Deploy to EKS
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
-          aws eks --region ${{ secrets.AWS_REGION }} update-kubeconfig --name react-speed-reader-cluster
+          aws eks --region $AWS_REGION update-kubeconfig --name react-speed-reader-cluster
           kubectl apply -f k8s/deployment.yml
