@@ -46,5 +46,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
-          aws eks --region $AWS_REGION update-kubeconfig --name react-speed-reader-cluster
+          aws eks --region $AWS_REGION update-kubeconfig --name next-js-app
+          kubectl get svc
+          kubectl get nodes
           kubectl apply -f k8s/deployment.yml
